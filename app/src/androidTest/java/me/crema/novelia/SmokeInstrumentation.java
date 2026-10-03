@@ -94,6 +94,22 @@ public final class SmokeInstrumentation extends Instrumentation {
             runCheck("uiReaderKeys", new Check() {
                 @Override public void run() throws Exception { checkReaderKeysAndTools(); }
             });
+            runCheck("uiReaderPhysicalInput", new Check() {
+                @Override public void run() throws Exception {
+                    freshActivity();
+                    try {
+                        runOnMainSync(() -> {
+                            try {
+                                Method demo = MainActivity.class.getDeclaredMethod("demo");
+                                demo.setAccessible(true);
+                                demo.invoke(activity[0]);
+                            } catch (Exception e) { throw new RuntimeException(e); }
+                        });
+                        waitForIdleSync();
+                        ReaderInputChecks.run(SmokeInstrumentation.this, activity[0]);
+                    } finally { finishMainActivity(); }
+                }
+            });
             runCheck("uiReaderReturn", new Check() {
                 @Override public void run() throws Exception { checkReaderReturn(); }
             });
@@ -1434,6 +1450,12 @@ public final class SmokeInstrumentation extends Instrumentation {
     }
 
     private void runCheck(String name, Check check) {
+        String only = arguments == null ? null : arguments.getString("only");
+        if (only != null && !java.util.Arrays.asList(only.split(",")).contains(name)) {
+            results.putString(name, "SKIP: not selected");
+            skipped++;
+            return;
+        }
         try {
             check.run();
             results.putString(name, "PASS");

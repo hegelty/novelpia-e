@@ -106,6 +106,9 @@ public class ReaderView extends View {
         setPadding(margin, margin, margin, margin);
         pager = TextPager.create(text);
         setWillNotDraw(false);
+        // ViewRoot consumes the first navigation key when leaving touch mode
+        // if it must select a new focus target. Retain focus on the reader.
+        setFocusableInTouchMode(true);
     }
 
     // ------------------------------------------------------------------

@@ -896,6 +896,7 @@ public final class MainActivity extends Activity {
         readerTools.setVisibility(View.GONE);
         readerFrame.addView(readerTools, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
         content.addView(readerFrame, new LinearLayout.LayoutParams(-1, 0, 1));
+        reader.requestFocus();
         if (prefs.getBoolean("keepAwake", false))
             getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         if (value.url != null && allowed(value.url)) {
