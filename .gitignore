@@ -1,0 +1,14 @@
+.gradle/
+.idea/
+local.properties
+build/
+app/build/
+dist/
+.tools/
+*.jks
+*.keystore
+*.hprof
+*.log
+javac.*.args
+__pycache__/
+novelia-session*.json

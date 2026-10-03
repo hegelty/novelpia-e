@@ -1,0 +1,9 @@
+{
+  "manifest_version": 3,
+  "name": "노벨피아 세션 내보내기",
+  "version": "1.1.0",
+  "description": "사용자가 요청할 때 노벨피아 쿠키만 JSON 파일로 저장합니다.",
+  "permissions": ["activeTab", "scripting", "cookies", "downloads"],
+  "host_permissions": ["https://novelpia.com/*", "https://*.novelpia.com/*"],
+  "action": { "default_popup": "popup.html" }
+}

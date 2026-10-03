@@ -1,0 +1,29 @@
+plugins { id 'com.android.application' }
+
+android {
+    namespace 'me.crema.novelia'
+    compileSdk 35
+    defaultConfig {
+        applicationId 'me.crema.novelia'
+        minSdk 19
+        // Sideload-only prototype. Not a Play Store distribution target.
+        targetSdk 28
+        versionCode 1
+        versionName '0.1.0-preview'
+        ndk { abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64' }
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+    buildTypes {
+        release { minifyEnabled false }
+    }
+}
+
+dependencies {
+    implementation 'org.conscrypt:conscrypt-android:2.5.2'
+    implementation 'org.jsoup:jsoup:1.15.4'
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'org.json:json:20140107'
+}
