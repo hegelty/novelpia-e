@@ -57,6 +57,20 @@ public class PagedListView extends LinearLayout {
     private Runnable previousAction;
     private Runnable nextAction;
     private Runnable screenChanged;
+    private Runnable visibleRowsChanged;
+    private int rowsVersion, notifiedVersion = -1, notifiedFirst = -1, notifiedCount = -1;
+    private final java.util.HashMap<Integer, TextView> visibleDetails = new java.util.HashMap<Integer, TextView>();
+    private final Runnable notifyVisibleRows = new Runnable() {
+        @Override public void run() {
+            if (visibleRowsChanged == null || getWidth() == 0 || getHeight() == 0) return;
+            int count = getVisibleCount();
+            if (notifiedVersion == rowsVersion && notifiedFirst == first && notifiedCount == count) return;
+            notifiedVersion = rowsVersion;
+            notifiedFirst = first;
+            notifiedCount = count;
+            visibleRowsChanged.run();
+        }
+    };
     private String note = "";
     private String emptyMessage = "목록이 없습니다";
     private int first = 0;
@@ -109,6 +123,7 @@ public class PagedListView extends LinearLayout {
         }
         int anchor = rows.isEmpty() ? 0 : first;
         rows = Collections.unmodifiableList(copy);
+        rowsVersion++;
         if (initialScreen == -1) {
             pendingScreen = -1;
         } else if (initialScreen >= 0) {
@@ -172,9 +187,38 @@ public class PagedListView extends LinearLayout {
         return PageWindow.count(rows.size(), Math.max(1, capacity));
     }
     public int getVisibleCount() { return Math.min(capacity, Math.max(0, rows.size() - first)); }
+    public int getFirstVisibleIndex() { return first; }
     public Button getPreviousButton() { return previousButton; }
     public Button getNextButton() { return nextButton; }
     public void setOnScreenChanged(Runnable listener) { screenChanged = listener; }
+    public void setOnVisibleRowsChanged(Runnable listener) {
+        visibleRowsChanged = listener;
+        notifiedVersion = -1;
+        post(notifyVisibleRows);
+    }
+
+    /** Update metadata in place so focus, row actions, and pagination survive. */
+    public void updateRowDetail(int index, String detail) {
+        if (index < 0 || index >= rows.size()) return;
+        Row prior = rows.get(index);
+        String value = detail == null ? "" : detail;
+        if (prior.detail.equals(value)) return;
+        ArrayList<Row> updated = new ArrayList<Row>(rows);
+        updated.set(index, new Row(prior.title, value, prior.action, prior.detailLines,
+                prior.quickLabel, prior.quickAction));
+        rows = Collections.unmodifiableList(updated);
+        TextView label = visibleDetails.get(index);
+        if (label != null) {
+            label.setText(value);
+            label.setVisibility(value.isEmpty() ? GONE : VISIBLE);
+        }
+    }
+
+    @Override protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+        super.onLayout(changed, left, top, right, bottom);
+        removeCallbacks(notifyVisibleRows);
+        post(notifyVisibleRows);
+    }
 
     @Override protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         super.onMeasure(widthMeasureSpec, heightMeasureSpec);
@@ -216,6 +260,7 @@ public class PagedListView extends LinearLayout {
 
     private void render() {
         if (body == null) return;
+        visibleDetails.clear();
         body.removeAllViews();
         if (rows.isEmpty()) {
             TextView empty = InkUi.text(getContext(), emptyMessage, 16);
@@ -243,8 +288,10 @@ public class PagedListView extends LinearLayout {
                 title.setEllipsize(TextUtils.TruncateAt.END);
                 textBlock.addView(title, new LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
                         ViewGroup.LayoutParams.WRAP_CONTENT));
-                if (!row.detail.isEmpty()) {
+                {
                     TextView detail = InkUi.text(getContext(), row.detail, 13);
+                    detail.setVisibility(row.detail.isEmpty() ? GONE : VISIBLE);
+                    visibleDetails.put(i, detail);
                     detail.setMaxLines(row.detailLines);
                     detail.setEllipsize(TextUtils.TruncateAt.END);
                     detail.setTextColor(Color.DKGRAY);

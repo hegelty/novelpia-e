@@ -128,6 +128,13 @@ public final class SmokeInstrumentation extends Instrumentation {
                     finally { finishMainActivity(); }
                 }
             });
+            runCheck("uiLatestEpisode", new Check() {
+                @Override public void run() throws Exception {
+                    freshActivity();
+                    try { LatestEpisodeUiChecks.run(SmokeInstrumentation.this, activity[0]); }
+                    finally { finishMainActivity(); }
+                }
+            });
             runCheck("uiReaderReturn", new Check() {
                 @Override public void run() throws Exception { checkReaderReturn(); }
             });
@@ -185,6 +192,14 @@ public final class SmokeInstrumentation extends Instrumentation {
                     }
                 });
                 if (arguments != null && arguments.containsKey("novelId")) {
+                    runCheck("latestEpisode", new Check() {
+                        @Override public void run() throws Exception {
+                            String label = new me.crema.novelia.account.LatestEpisodeClient(http)
+                                    .latestLabel("https://novelpia.com/novel/" + arguments.getString("novelId"));
+                            require(label.matches("EP\\.[0-9]+"), "latest episode label unavailable");
+                            results.putString("latestEpisode.label", label);
+                        }
+                    });
                     runCheck("episodes", new Check() {
                         @Override public void run() throws Exception {
                             List<SiteClient.Entry> rows = new SiteClient(http)

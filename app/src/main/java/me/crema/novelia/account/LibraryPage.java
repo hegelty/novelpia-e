@@ -97,6 +97,8 @@ public final class LibraryPage {
          * viewer id).
          */
         public final int totalEpisodes;
+        /** Actual label from the newest-first episode list; empty while unknown. */
+        public final String latestEpisodeLabel;
         /** Author name from the row's writer metadata, "" when absent. */
         public final String author;
         /** Site-supplied ordering key for get_next_episode, NOT derived from a count or viewer ID. */
@@ -112,12 +114,23 @@ public final class LibraryPage {
 
         public Item(SiteClient.Entry entry, String continueUrl,
                     int lastReadEpisode, int totalEpisodes, String author, String nextEpisodeKey) {
+            this(entry, continueUrl, lastReadEpisode, totalEpisodes, author, nextEpisodeKey, "");
+        }
+
+        public Item(SiteClient.Entry entry, String continueUrl, int lastReadEpisode,
+                    int totalEpisodes, String author, String nextEpisodeKey, String latestEpisodeLabel) {
             this.entry = entry;
             this.continueUrl = continueUrl == null ? "" : continueUrl;
             this.lastReadEpisode = lastReadEpisode;
             this.totalEpisodes = totalEpisodes;
+            this.latestEpisodeLabel = latestEpisodeLabel != null
+                    && latestEpisodeLabel.matches("EP\\.[0-9]{1,9}") ? latestEpisodeLabel : "";
             this.author = author == null ? "" : author;
             this.nextEpisodeKey = nextEpisodeKey == null ? "" : nextEpisodeKey;
+        }
+
+        public Item withLatestEpisodeLabel(String label) {
+            return new Item(entry, continueUrl, lastReadEpisode, totalEpisodes, author, nextEpisodeKey, label);
         }
 
         public boolean hasNextEpisode() { return !nextEpisodeKey.isEmpty(); }
@@ -130,7 +143,10 @@ public final class LibraryPage {
                 if (label.length() != 0) label.append(" · ");
                 label.append("마지막 읽은 EP.").append(lastReadEpisode);
             }
-            if (totalEpisodes >= 0) {
+            if (!latestEpisodeLabel.isEmpty()) {
+                if (label.length() != 0) label.append(" · ");
+                label.append("최신 ").append(latestEpisodeLabel);
+            } else if (totalEpisodes >= 0) {
                 if (label.length() != 0) label.append(" · ");
                 label.append("등록 ").append(totalEpisodes).append("편");
             }

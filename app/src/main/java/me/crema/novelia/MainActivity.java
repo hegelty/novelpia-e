@@ -18,6 +18,7 @@ import android.widget.*;
 import me.crema.novelia.net.NativeHttp;
 import me.crema.novelia.account.AccountClient;
 import me.crema.novelia.account.LibraryPage;
+import me.crema.novelia.account.LatestEpisodeClient;
 import me.crema.novelia.account.LibraryParser;
 import me.crema.novelia.account.CredentialStore;
 import me.crema.novelia.ui.InkUi;
@@ -55,6 +56,9 @@ public final class MainActivity extends Activity {
     private AlertDialog loginDialog;
     private volatile SiteClient site;
     private volatile NativeHttp http;
+    private volatile LatestEpisodeClient latestEpisodes;
+    private volatile int latestEpisodeGeneration;
+    private Runnable resumeLatestEpisodes;
     private DisplayTuningLayout root;
     private LinearLayout content, readerBar, navigation, readerTools;
     private TextView status, heading;
@@ -197,6 +201,8 @@ public final class MainActivity extends Activity {
     private void home() { open(HOME, true); }
 
     private void resetContent(String title) {
+        ++latestEpisodeGeneration;
+        resumeLatestEpisodes = null;
         saveProgress();
         reading = false;
         reader = null;
@@ -245,7 +251,7 @@ public final class MainActivity extends Activity {
                         new FontDialogBuilder(this).setTitle("로그아웃할까요?")
                                 .setMessage("현재 로그인과 저장된 이메일·비밀번호를 지우고 자동 로그인을 끕니다.")
                                 .setNegativeButton("취소", null).setPositiveButton("로그아웃", (d,w) ->
-                                    request("로그아웃 중…", () -> { client(); http.clearCookies(); credentials.clear(); return true; },
+                                    request("로그아웃 중…", () -> { client(); http.clearCookies(); credentials.clear(); invalidateLatestEpisodes(); return true; },
                                             ok -> { chapter = null; welcome(); toast("로그아웃했습니다."); })).show()});
     }
 
@@ -278,6 +284,8 @@ public final class MainActivity extends Activity {
     private interface Work<T> { T run() throws Exception; }
     private interface Result<T> { void accept(T value); }
     private <T> void request(String message, Work<T> work, Result<T> result) {
+        ++latestEpisodeGeneration;
+        final Runnable interruptedLatest = resumeLatestEpisodes;
         final int token = ++generation;
         final int priorStatusVisibility = status.getVisibility();
         loading = true;
@@ -294,6 +302,8 @@ public final class MainActivity extends Activity {
                         status.setVisibility(priorStatusVisibility);
                         if (reading) updateProgress();
                         result.accept(value);
+                        if (!loading && interruptedLatest != null && interruptedLatest == resumeLatestEpisodes)
+                            interruptedLatest.run();
                     }
                 });
             } catch (Exception e) {
@@ -311,6 +321,8 @@ public final class MainActivity extends Activity {
                             dialog.setPositiveButton("로그인", (d,w) -> login());
                         else dialog.setPositiveButton("다시 시도", (d,w) -> request(message, work, result));
                         dialog.show();
+                        if (!loading && interruptedLatest != null && interruptedLatest == resumeLatestEpisodes)
+                            interruptedLatest.run();
                     }
                 });
             }
@@ -461,10 +473,7 @@ public final class MainActivity extends Activity {
         }
         ArrayList<PagedListView.Row> rows = new ArrayList<PagedListView.Row>();
         for (LibraryPage.Item item : page.items) {
-            String detail = item.progressLabel();
-            if (item.hasNextEpisode()) detail = detail.replaceFirst("^다음 회차 있음(?: · )?", "");
-            if (!item.author.isEmpty()) detail += "\n" + item.author;
-            rows.add(new PagedListView.Row(item.entry.title, detail, () -> {
+            rows.add(new PagedListView.Row(item.entry.title, libraryDetail(item), () -> {
                 ArrayList<String> labels = new ArrayList<String>();
                 ArrayList<Runnable> actions = new ArrayList<Runnable>();
                 if (!item.continueUrl.isEmpty()) {
@@ -492,9 +501,57 @@ public final class MainActivity extends Activity {
         pagedList.setRows(rows, initialScreen);
         content.addView(pagedList, new LinearLayout.LayoutParams(-1, 0, 1));
         rememberScreens(page.url, pagedList);
-        refreshAction = () -> open(page.url, false, false, pagedList.getScreen());
+        final PagedListView libraryView = pagedList;
+        resumeLatestEpisodes = () -> loadVisibleLatestEpisodes(page, libraryView);
+        libraryView.setOnVisibleRowsChanged(resumeLatestEpisodes);
+        refreshAction = () -> {
+            invalidateLatestEpisodes();
+            open(page.url, false, false, libraryView.getScreen());
+        };
         status.setText("");
         status.setVisibility(View.INVISIBLE);
+    }
+
+    private static String libraryDetail(LibraryPage.Item item) {
+        String detail = item.progressLabel();
+        if (item.hasNextEpisode()) detail = detail.replaceFirst("^다음 회차 있음(?: · )?", "");
+        if (!item.author.isEmpty()) detail += (detail.isEmpty() ? "" : "\n") + item.author;
+        return detail;
+    }
+
+    private void invalidateLatestEpisodes() {
+        ++latestEpisodeGeneration;
+        LatestEpisodeClient metadata = latestEpisodes;
+        if (metadata != null) metadata.clear();
+    }
+
+    private void loadVisibleLatestEpisodes(final LibraryPage page, final PagedListView view) {
+        if (destroyed || loading || view != pagedList || page.items.isEmpty()) return;
+        final int token = ++latestEpisodeGeneration;
+        final int first = view.getFirstVisibleIndex();
+        final int end = Math.min(page.items.size(), first + view.getVisibleCount());
+        io.execute(() -> {
+            try {
+                if (token != latestEpisodeGeneration || Thread.currentThread().isInterrupted()) return;
+                client();
+                if (latestEpisodes == null) latestEpisodes = new LatestEpisodeClient(http);
+                for (int index = first; index < end; index++) {
+                    if (token != latestEpisodeGeneration || Thread.currentThread().isInterrupted()) return;
+                    final int row = index;
+                    final LibraryPage.Item item = page.items.get(row);
+                    final String label = latestEpisodes.latestLabel(item.entry.url);
+                    if (label.isEmpty()) continue;
+                    runOnUiThread(() -> {
+                        if (destroyed || token != latestEpisodeGeneration || view != pagedList
+                                || row < view.getFirstVisibleIndex()
+                                || row >= view.getFirstVisibleIndex() + view.getVisibleCount()) return;
+                        view.updateRowDetail(row, libraryDetail(item.withLatestEpisodeLabel(label)));
+                    });
+                }
+            } catch (Exception ignored) {
+                // Optional metadata never prevents opening the shelf or reading.
+            }
+        });
     }
 
     private void openNextEpisode(LibraryPage.Item item) {
@@ -678,6 +735,7 @@ public final class MainActivity extends Activity {
                         final boolean automatic, final boolean fromStorage) {
         if (signingIn) return;
         signingIn = true;
+        ++latestEpisodeGeneration;
         final int token = ++generation;
         loading = true;
         status.setText(fromStorage ? "자동 로그인 중…" : "로그인 중…");
@@ -687,7 +745,7 @@ public final class MainActivity extends Activity {
             try {
                 CredentialStore.Credentials saved = fromStorage ? credentials.load() : null;
                 if (!fromStorage && !remember) credentials.clear();
-                client(); http.clearCookies();
+                client(); http.clearCookies(); invalidateLatestEpisodes();
                 result = accountClient().login(fromStorage ? saved.email : email,
                         fromStorage ? saved.password : password);
                 if (result.isAuthenticated() && !fromStorage && remember) {
@@ -1135,6 +1193,7 @@ public final class MainActivity extends Activity {
                 boolean replaced = false;
                 try (InputStream in = getContentResolver().openInputStream(uri)) {
                     http.importSession(in);
+                    invalidateLatestEpisodes();
                     replaced = true;
                     AccountClient.SessionStatus result = accountClient().sessionStatus();
                     if (!result.isAuthenticated()) http.clearCookies();
@@ -1243,6 +1302,7 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onDestroy() {
         destroyed = true;
+        ++latestEpisodeGeneration;
         if (loginDialog != null) loginDialog.dismiss();
         ++generation;
         io.shutdownNow();
