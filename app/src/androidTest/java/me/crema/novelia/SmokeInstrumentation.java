@@ -110,6 +110,17 @@ public final class SmokeInstrumentation extends Instrumentation {
                     } finally { finishMainActivity(); }
                 }
             });
+            runCheck("uiStartupLogin", new Check() {
+                @Override public void run() throws Exception {
+                    android.content.Intent intent = new android.content.Intent(getTargetContext(), MainActivity.class);
+                    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                    Activity result = startActivitySync(intent);
+                    try {
+                        awaitStartupLogin(result, false);
+                        UiStateChecks.runStartup(SmokeInstrumentation.this, result);
+                    } finally { runOnMainSync(() -> result.finish()); }
+                }
+            });
             runCheck("uiLoadingLayout", new Check() {
                 @Override public void run() throws Exception {
                     freshActivity();
@@ -255,6 +266,29 @@ public final class SmokeInstrumentation extends Instrumentation {
         if (failure[0] != null) throw new AssertionError("synthetic library UI failed", failure[0]);
     }
 
+    private Activity startScenarioActivity(android.content.Intent intent) {
+        Activity result = startActivitySync(intent);
+        awaitStartupLogin(result, true);
+        return result;
+    }
+
+    private void awaitStartupLogin(final Activity result, final boolean dismiss) {
+        long deadline = android.os.SystemClock.uptimeMillis() + 10000;
+        final boolean[] ready = new boolean[1];
+        do {
+            runOnMainSync(() -> {
+                try {
+                    AlertDialog dialog = (AlertDialog) field(result, "loginDialog");
+                    ready[0] = dialog != null && dialog.isShowing();
+                    if (ready[0] && dismiss) dialog.getButton(AlertDialog.BUTTON_NEGATIVE).performClick();
+                } catch (Exception e) { throw new RuntimeException(e); }
+            });
+            if (ready[0]) { waitForIdleSync(); return; }
+            android.os.SystemClock.sleep(20);
+        } while (android.os.SystemClock.uptimeMillis() < deadline);
+        throw new AssertionError("startup login did not appear");
+    }
+
     /** A fresh MainActivity for each synthetic scenario, as parent snapshots do. */
     private void freshActivity() {
         if (activity[0] != null) {
@@ -267,7 +301,7 @@ public final class SmokeInstrumentation extends Instrumentation {
         }
         android.content.Intent intent = new android.content.Intent(getTargetContext(), MainActivity.class);
         intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
-        activity[0] = startActivitySync(intent);
+        activity[0] = startScenarioActivity(intent);
         waitForIdleSync();
     }
 
@@ -742,7 +776,7 @@ public final class SmokeInstrumentation extends Instrumentation {
     private void checkReaderKeysAndTools() throws Exception {
         android.content.Intent intent = new android.content.Intent(getTargetContext(), MainActivity.class);
         intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
-        final Activity activity = startActivitySync(intent);
+        final Activity activity = startScenarioActivity(intent);
         waitForIdleSync();
         final Throwable[] failure = new Throwable[1];
         try {
@@ -987,7 +1021,7 @@ public final class SmokeInstrumentation extends Instrumentation {
     private void checkSettingsDialogs() throws Exception {
         android.content.Intent intent = new android.content.Intent(getTargetContext(), MainActivity.class);
         intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
-        final Activity activity = startActivitySync(intent);
+        final Activity activity = startScenarioActivity(intent);
         waitForIdleSync();
         try {
             final AlertDialog[] dialogs = new AlertDialog[1];

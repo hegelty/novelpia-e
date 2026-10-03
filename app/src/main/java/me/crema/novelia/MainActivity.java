@@ -51,7 +51,8 @@ public final class MainActivity extends Activity {
     private final ExecutorService io = Executors.newSingleThreadExecutor();
     private SharedPreferences prefs;
     private CredentialStore credentials;
-    private boolean signingIn;
+    private boolean signingIn, loginOpening;
+    private AlertDialog loginDialog;
     private volatile SiteClient site;
     private volatile NativeHttp http;
     private DisplayTuningLayout root;
@@ -82,6 +83,7 @@ public final class MainActivity extends Activity {
     private static final class Retained {
         SiteClient site;
         NativeHttp http;
+        boolean loginPending;
         Chapter chapter;
         String location;
         float progress;
@@ -149,7 +151,10 @@ public final class MainActivity extends Activity {
             readerReturnNovelId = retained.readerReturnNovelId;
             readerReturnPage = retained.readerReturnPage;
             readerReturnScreen = retained.readerReturnScreen;
-            if (retained.chapter != null) {
+            if (retained.loginPending) {
+                welcome();
+                login();
+            } else if (retained.chapter != null) {
                 showChapter(retained.chapter);
                 reader.restoreProgress(retained.progress);
             } else if (retained.listNovelId != null)
@@ -158,6 +163,7 @@ public final class MainActivity extends Activity {
         } else {
             welcome();
             if (credentials.isAutoLoginEnabled()) autoLogin();
+            else login();
         }
     }
 
@@ -599,7 +605,9 @@ public final class MainActivity extends Activity {
     }
 
     private void login() {
+        if (loginOpening || (loginDialog != null && loginDialog.isShowing())) return;
         if (signingIn) { toast("로그인 중입니다."); return; }
+        loginOpening = true;
         io.execute(() -> {
             CredentialStore.Credentials saved = null;
             boolean failed = false;
@@ -608,6 +616,7 @@ public final class MainActivity extends Activity {
             final CredentialStore.Credentials value = saved;
             final boolean unavailable = failed;
             runOnUiThread(() -> {
+                loginOpening = false;
                 if (destroyed) return;
                 showLoginFields(value == null ? "" : value.email, value == null ? "" : value.password);
                 if (unavailable) toast("저장된 로그인 정보를 열 수 없습니다. 직접 입력해주세요.");
@@ -616,6 +625,7 @@ public final class MainActivity extends Activity {
     }
 
     private void showLoginFields(String savedEmail, String savedPassword) {
+        if (loginDialog != null && loginDialog.isShowing()) return;
         LinearLayout fields = vertical();
         fields.setPadding(dp(16), dp(8), dp(16), dp(8));
         EditText email = input("노벨피아 이메일", false);
@@ -638,7 +648,11 @@ public final class MainActivity extends Activity {
         note.setPadding(0, dp(8), 0, 0); fields.addView(note);
         AlertDialog dialog = new FontDialogBuilder(this).setTitle("이메일 로그인").setView(fields)
                 .setNegativeButton("취소", null).setPositiveButton("로그인", null).create();
-        dialog.setOnDismissListener(d -> { password.setText(""); email.setText(""); });
+        loginDialog = dialog;
+        dialog.setOnDismissListener(d -> {
+            password.setText(""); email.setText("");
+            if (loginDialog == dialog) loginDialog = null;
+        });
         dialog.setOnShowListener(d -> {
             FontDialogBuilder.decorate(dialog);
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
@@ -702,7 +716,12 @@ public final class MainActivity extends Activity {
                             .setMessage(notice).setPositiveButton("확인", null).show();
                 } else {
                     status.setText("로그인 필요");
-                    new FontDialogBuilder(this).setTitle(fromStorage ? "자동 로그인 실패" : "로그인 실패")
+                    if (fromStorage) {
+                        login();
+                        toast(!notice.isEmpty() ? notice : "자동 로그인에 실패했습니다. 다시 로그인해주세요.");
+                        return;
+                    }
+                    new FontDialogBuilder(this).setTitle("로그인 실패")
                             .setMessage(!notice.isEmpty() ? notice : outcome == null ? "로그인을 다시 시도해주세요." : outcome.message)
                             .setNegativeButton("닫기", null).setPositiveButton("이메일 로그인", (d,w) -> login()).show();
                 }
@@ -1205,6 +1224,7 @@ public final class MainActivity extends Activity {
     @Override protected void onPause() { saveProgress(); consumedKeys.clear(); super.onPause(); }
     @Override public Object onRetainNonConfigurationInstance() {
         Retained value = new Retained();
+        value.loginPending = loginOpening || signingIn || (loginDialog != null && loginDialog.isShowing());
         value.site = site;
         value.http = http;
         value.chapter = reading ? chapter : null;
@@ -1223,6 +1243,7 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onDestroy() {
         destroyed = true;
+        if (loginDialog != null) loginDialog.dismiss();
         ++generation;
         io.shutdownNow();
         super.onDestroy();
