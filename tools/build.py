@@ -56,7 +56,8 @@ def generate_validation_app_manifest(out):
     ET.SubElement(root, "uses-permission",
                   {"android:name": "android.permission.INTERNET"})
     application = ET.SubElement(root, "application", {
-        "android:label": "노벨피아 e-ink · 검증",
+        "android:label": "노벨피아e · 검증",
+        "android:icon": "@mipmap/ic_launcher",
         "android:theme": "@style/AppTheme",
         "android:allowBackup": "false",
         "android:hardwareAccelerated": "false",
@@ -168,7 +169,7 @@ def main():
         app_link_extra = []
     run(aapt, "link", "-I", android, "--manifest", app_manifest,
         "--min-sdk-version", "19", "--target-sdk-version", "28",
-        "--version-code", "1", "--version-name", "0.1.0-preview",
+        "--version-code", "2", "--version-name", "0.1.0",
         "--java", gen, "-A", ROOT / "app/src/main/assets", *app_link_extra,
         "-o", out / "unsigned.apk", out / "resources.zip")
     libraries = [deps / "conscrypt/classes.jar", deps / "jsoup.jar"]
@@ -202,8 +203,8 @@ def main():
     if validation:
         dist = dist / "validation"
         dist.mkdir(exist_ok=True)
-    apk = dist / ("novelia-0.1.0-preview-validation.apk" if validation
-                  else "novelia-0.1.0-preview.apk")
+    apk = dist / ("novelpia-e-0.1.0-validation.apk" if validation
+                  else "novelpia-e-0.1.0.apk")
     run(java / "java", "-jar", buildtools / "apksigner.jar", "sign",
         "--ks", key, "--ks-pass", "pass:android", "--key-pass", "pass:android",
         "--v1-signing-enabled", "true", "--v2-signing-enabled", "true",
@@ -241,8 +242,8 @@ def main():
         with zipfile.ZipFile(out / "smoke-unsigned.apk", "a", zipfile.ZIP_DEFLATED) as testapk:
             for file in smokedex.glob("*.dex"):
                 testapk.write(file, file.name)
-        smoke_apk = dist / ("novelia-0.1.0-preview-validation-smoke.apk" if validation
-                            else "novelia-smoke.apk")
+        smoke_apk = dist / ("novelpia-e-0.1.0-validation-smoke.apk" if validation
+                            else "novelpia-e-0.1.0-smoke.apk")
         run(java / "java", "-jar", buildtools / "apksigner.jar", "sign",
             "--ks", key, "--ks-pass", "pass:android", "--key-pass", "pass:android",
             "--v1-signing-enabled", "true", "--out", smoke_apk, out / "smoke-unsigned.apk")

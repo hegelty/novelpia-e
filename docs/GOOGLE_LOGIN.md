@@ -12,7 +12,7 @@
    개발자 모드를 켜고 **압축해제된 확장 프로그램 로드**를 선택합니다.
 3. 프로젝트의 `tools/novelpia-session-export` 폴더를 선택합니다.
    현재 Windows 경로는
-   `C:\Users\skxod\programming\e-nobelpia\tools\novelpia-session-export`입니다.
+   `<프로젝트 폴더>\tools\novelpia-session-export`입니다.
 4. 공식 노벨피아 탭을 활성화한 상태에서 확장 아이콘을 열고 **세션 파일 저장**을 누릅니다.
    v1.1.0부터 해당 탭의 서버 렌더링 로그인 표시를 먼저 확인하고,
    탭이 속한 쿠키 저장소를 명시적으로 선택합니다. 결과에는 로그인 상태와

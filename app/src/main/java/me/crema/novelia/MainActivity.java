@@ -76,7 +76,7 @@ public final class MainActivity extends Activity {
     private FrameLayout readerFrame;
     private Chapter chapter;
     private String location = HOME;
-    private String currentTitle = "노벨피아 e-ink";
+    private String currentTitle = "노벨피아e";
     private int generation, turnCount;
     private boolean destroyed, reading;
     private int fontSize;
@@ -117,8 +117,8 @@ public final class MainActivity extends Activity {
         navigation = horizontal();
         navigation.setGravity(Gravity.CENTER_VERTICAL);
         navigation.setPadding(dp(16), dp(6), dp(16), dp(6));
-        TextView brand = label("노벨피아 e-ink", 20);
-        brand.setContentDescription("노벨피아 e-ink 시작 화면");
+        TextView brand = label("노벨피아e", 20);
+        brand.setContentDescription("노벨피아e 시작 화면");
         brand.setPadding(dp(8), dp(8), dp(8), dp(8));
         brand.setOnClickListener(v -> { ++generation; loading = false; welcome(); });
         brand.setFocusable(true);
@@ -899,11 +899,19 @@ public final class MainActivity extends Activity {
     }
 
     private void about() {
-        new FontDialogBuilder(this).setTitle("노벨피아 e-ink")
-                .setMessage("노벨피아와 무관한 비공식 리더입니다.\n\n"
-                        + "비밀번호 저장을 켜면 이메일·비밀번호를 기기 키로 암호화해 저장합니다. 자동 로그인은 선택 사항이며 로그인 관리에서 삭제·해제할 수 있습니다. 쿠키와 본문은 저장하지 않습니다.\n\n"
-                        + "앱 내부 TLS는 인증서와 호스트명을 검증하며 시스템 인증서를 변경하지 않습니다. 구독·결제 확인을 우회하지 않습니다.\n\n"
-                        + "화면 다시 그리기는 일반 흑백 화면 갱신이며 제조사 EPD 파형 제어가 아닙니다. 구글 세션 가져오기와 크레마 실기기는 추가 검증이 필요합니다.")
+        new FontDialogBuilder(this).setTitle("노벨피아e 정보")
+                .setMessage("노벨피아와 관련 없는 개인 프로젝트입니다. 노벨피아의 공식 앱이나 제휴 서비스가 아닙니다.\n\n"
+                        + "이 앱은 있는 그대로 제공되며, 동작·연동·지원 지속을 보증하지 않습니다.\n\n"
+                        + "소스 코드는 GNU GPL v3로 배포합니다. 외부 구성요소는 각각의 라이선스를 따릅니다.\n\n"
+                        + "저장한 로그인 정보는 기기 키로 암호화합니다. 쿠키와 본문은 저장하지 않습니다.")
+                .setNeutralButton("GPL v3 소스 보기", (d, w) -> {
+                    try {
+                        startActivity(new Intent(Intent.ACTION_VIEW,
+                                Uri.parse("https://github.com/hegelty/novelpia-e")));
+                    } catch (android.content.ActivityNotFoundException e) {
+                        toast("소스 코드 링크를 열 수 없습니다.");
+                    }
+                })
                 .setPositiveButton("닫기", null).show();
     }
 

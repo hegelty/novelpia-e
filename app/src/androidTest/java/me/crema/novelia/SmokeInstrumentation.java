@@ -66,6 +66,13 @@ public final class SmokeInstrumentation extends Instrumentation {
     @Override
     public void onStart() {
         super.onStart();
+        Object publicationScreenshots = arguments == null
+                ? null : arguments.get("publicationScreenshots");
+        if (Boolean.TRUE.equals(publicationScreenshots)
+                || "true".equalsIgnoreCase(String.valueOf(publicationScreenshots))) {
+            runPublicationScreenshotsOnly();
+            return;
+        }
         try {
             // All Activities auto-login on create when production prefs are enabled.
             // Refuse before launch and skip the synthetic UI rather than ever
@@ -266,6 +273,33 @@ public final class SmokeInstrumentation extends Instrumentation {
         }
     }
 
+    /** Run only the opt-in publication capture path, without network checks. */
+    private void runPublicationScreenshotsOnly() {
+        try {
+            // MainActivity may auto-login on launch. Refuse before opening it
+            // if the app namespace contains any saved account credentials.
+            refuseProductionCredentials();
+            runCheck("publicationScreenshots", new Check() {
+                @Override public void run() throws Exception {
+                    freshActivity();
+                    try {
+                        PublicationScreenshots.run(SmokeInstrumentation.this, activity[0]);
+                    } finally {
+                        finishMainActivity();
+                    }
+                }
+            });
+        } catch (Throwable error) {
+            results.putString("setup", "FAIL: " + error.getClass().getName());
+            failed++;
+        }
+        results.putInt("passed", passed);
+        results.putInt("failed", failed);
+        results.putInt("skipped", skipped);
+        results.putString("overall", failed == 0 ? "PASS" : "FAIL");
+        finish(Activity.RESULT_OK, results);
+    }
+
     private interface Check {
         void run() throws Exception;
     }
@@ -339,12 +373,12 @@ public final class SmokeInstrumentation extends Instrumentation {
     private void checkRecentTab(final Throwable[] failure) {
         freshActivity();
         capture(activity[0].getWindow().getDecorView(), "ui-home.png");
-        // The welcome has no private currentTitle text (it stays '노벨피아 e-ink');
+        // The welcome has no private currentTitle text (it stays '노벨피아e');
         // assert the brand TextView itself.
-        View brand = findTextLabel(activity[0].getWindow().getDecorView(), "노벨피아 e-ink");
+        View brand = findTextLabel(activity[0].getWindow().getDecorView(), "노벨피아e");
         require(brand instanceof TextView
-                        && "노벨피아 e-ink".equals(((TextView) brand).getText().toString().trim()),
-                "welcome brand '노벨피아 e-ink' missing");
+                        && "노벨피아e".equals(((TextView) brand).getText().toString().trim()),
+                "welcome brand '노벨피아e' missing");
         final LibraryPage[] page = new LibraryPage[1];
         runOnMainSync(new Runnable() {
             @Override public void run() {
@@ -1374,7 +1408,7 @@ public final class SmokeInstrumentation extends Instrumentation {
         return null;
     }
 
-    private void captureNow(View view, String name) {
+    void captureNow(View view, String name) {
         Bitmap bitmap = null;
         try {
             require(view != null && view.getWidth() > 0 && view.getHeight() > 0,

@@ -1,0 +1,23 @@
+Additional permission under GNU GPL version 3, section 7
+
+Copyright (C) 2026 hegelty and the contributors to NovelpiaE.
+
+The copyright holders of this Program grant permission to link or combine
+this Program with unmodified Conscrypt Android 2.5.2 and the BoringSSL code
+included in that distribution, and to convey the resulting work under the
+GNU General Public License version 3, provided that you also comply with
+the licenses and notices of those libraries.
+
+For a combination permitted above, the Corresponding Source required by
+the GNU General Public License version 3 need not include the source code
+of the unmodified Conscrypt and BoringSSL libraries. This exception does
+not remove any obligation to provide the Corresponding Source for this
+Program, modifications to this Program, or other covered components.
+
+This permission does not relicense Conscrypt or BoringSSL. Their original
+licenses, copyright notices, acknowledgments, and disclaimers continue to
+apply. See docs/THIRD_PARTY.md and app/src/main/assets/licenses/.
+
+If you modify this Program, you may extend this exception to your version,
+but you are not obligated to do so. If you do not wish to do so, delete this
+exception statement from your version.
