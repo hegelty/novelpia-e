@@ -110,6 +110,13 @@ public final class SmokeInstrumentation extends Instrumentation {
                     } finally { finishMainActivity(); }
                 }
             });
+            runCheck("uiLoadingLayout", new Check() {
+                @Override public void run() throws Exception {
+                    freshActivity();
+                    try { UiStateChecks.runLoading(SmokeInstrumentation.this, activity[0]); }
+                    finally { finishMainActivity(); }
+                }
+            });
             runCheck("uiReaderReturn", new Check() {
                 @Override public void run() throws Exception { checkReaderReturn(); }
             });

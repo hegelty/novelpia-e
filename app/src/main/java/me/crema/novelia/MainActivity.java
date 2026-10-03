@@ -133,7 +133,11 @@ public final class MainActivity extends Activity {
         root.addView(readerBar);
         status = label("", 12);
         status.setPadding(dp(24), dp(8), dp(24), dp(8));
-        root.addView(status);
+        status.setSingleLine(true);
+        status.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        // Reserve this space on list/home screens so request messages do not
+        // change pagination or move the controls. Reading has its own footer.
+        root.addView(status, new LinearLayout.LayoutParams(-1, dp(40)));
         Retained retained = (Retained) getLastNonConfigurationInstance();
         if (retained != null) {
             site = retained.site;
@@ -484,7 +488,7 @@ public final class MainActivity extends Activity {
         rememberScreens(page.url, pagedList);
         refreshAction = () -> open(page.url, false, false, pagedList.getScreen());
         status.setText("");
-        status.setVisibility(View.GONE);
+        status.setVisibility(View.INVISIBLE);
     }
 
     private void openNextEpisode(LibraryPage.Item item) {
@@ -568,7 +572,7 @@ public final class MainActivity extends Activity {
         refreshAction = novelId == null ? () -> open(location, false)
                 : () -> showEpisodes(novelId, page, pagedList.getScreen());
         status.setText("");
-        status.setVisibility(View.GONE);
+        status.setVisibility(View.INVISIBLE);
     }
 
     private void rememberScreens(final String key, final PagedListView view) {
