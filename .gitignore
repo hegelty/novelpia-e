@@ -12,3 +12,6 @@ dist/
 javac.*.args
 __pycache__/
 novelia-session*.json
+
+# Local credentials supplied for manual validation
+/password
