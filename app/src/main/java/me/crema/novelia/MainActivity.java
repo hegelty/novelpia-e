@@ -17,6 +17,9 @@ import android.view.WindowManager;
 import android.widget.*;
 import me.crema.novelia.net.NativeHttp;
 import me.crema.novelia.account.AccountClient;
+import me.crema.novelia.account.AdultModeClient;
+import me.crema.novelia.account.AdultModeStatus;
+import me.crema.novelia.site.ContentAccessException;
 import me.crema.novelia.account.LibraryPage;
 import me.crema.novelia.account.LatestEpisodeClient;
 import me.crema.novelia.account.LibraryParser;
@@ -245,6 +248,75 @@ public final class MainActivity extends Activity {
                         this::accountSettings, this::checkAccountLink});
     }
 
+    private void adultModeSettings() {
+        request("성인 모드 확인 중…", () -> {
+            client();
+            return new AdultModeClient(http).status();
+        }, this::showAdultModeSettings);
+    }
+
+    private void showAdultModeSettings(AdultModeStatus mode) {
+        if (mode.state == AdultModeStatus.State.LOGIN_REQUIRED) {
+            showRequestFailure(new ContentAccessException(ContentAccessException.Reason.LOGIN_REQUIRED), this::adultModeSettings);
+            return;
+        }
+        FontDialogBuilder dialog = new FontDialogBuilder(this);
+        dialog.setTitle(mode.message).setNegativeButton("닫기", null);
+        if (mode.isKnown()) {
+            dialog.setMessage("노벨피아 계정의 성인 모드를 변경합니다.")
+                    .setPositiveButton(mode.isEnabled() ? "끄기" : "켜기",
+                            (d,w) -> changeAdultMode(!mode.isEnabled(), null));
+        } else {
+            dialog.setMessage("사이트에서 현재 설정을 확인하지 못했습니다. 다시 확인해주세요.")
+                    .setPositiveButton("다시 확인", (d,w) -> adultModeSettings());
+        }
+        dialog.show();
+    }
+
+    private void changeAdultMode(boolean enabled, Runnable retry) {
+        request("성인 모드 변경 중…", () -> {
+            client();
+            return new AdultModeClient(http).setEnabled(enabled);
+        }, mode -> {
+            invalidateLatestEpisodes();
+            toast(mode.message);
+            if (retry != null) retry.run();
+            else showAdultModeSettings(mode);
+        });
+    }
+
+    private void openAgeVerification() {
+        try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(ORIGIN + "page/age_auth"))); }
+        catch (android.content.ActivityNotFoundException ignored) {
+            new FontDialogBuilder(this).setTitle("성인 인증 안내")
+                    .setMessage("브라우저에서 novelpia.com/page/age_auth에 접속해 인증한 후 다시 시도해주세요.")
+                    .setPositiveButton("확인", null).show();
+        }
+    }
+
+    private void showRequestFailure(Exception failure, Runnable retry) {
+        FontDialogBuilder dialog = new FontDialogBuilder(this);
+        dialog.setTitle("불러오지 못했습니다").setMessage(safeMessage(failure))
+                .setNegativeButton("취소", null);
+        if (failure instanceof ContentAccessException) {
+            switch (((ContentAccessException) failure).reason) {
+                case LOGIN_REQUIRED:
+                    dialog.setTitle("로그인 필요").setPositiveButton("로그인", (d,w) -> login()); break;
+                case ADULT_MODE_REQUIRED:
+                    dialog.setTitle("성인 모드 꺼짐").setPositiveButton("성인 모드 켜기",
+                            (d,w) -> changeAdultMode(true, retry)); break;
+                case AGE_VERIFICATION_REQUIRED:
+                    dialog.setTitle("성인 인증 필요").setPositiveButton("인증 페이지 열기",
+                            (d,w) -> openAgeVerification()); break;
+                case AGE_RESTRICTED:
+                    dialog.setTitle("열람 제한").setNegativeButton(null, null).setPositiveButton("확인", null); break;
+            }
+        } else if ("로그인이 필요합니다.".equals(safeMessage(failure))) {
+            dialog.setPositiveButton("로그인", (d,w) -> login());
+        } else dialog.setPositiveButton("다시 시도", (d,w) -> retry.run());
+        dialog.show();
+    }
+
     private void accountSettings() {
         choices("로그인 관리", new String[]{"이메일 로그인", "저장된 로그인 설정", "PC 로그인 가져오기 · 구글 계정", "이 기기에서 로그아웃"},
                 new Runnable[]{this::login, this::savedLoginSettings, this::importSession, () ->
@@ -308,19 +380,12 @@ public final class MainActivity extends Activity {
                 });
             } catch (Exception e) {
                 // Do not log exception details: server messages could contain session data.
-                final String error = safeMessage(e);
                 runOnUiThread(() -> {
                     if (!destroyed && token == generation) {
                         loading = false;
                         updateProgress();
                         status.setText("요청 실패 · 다시 시도할 수 있습니다");
-                        FontDialogBuilder dialog = new FontDialogBuilder(this);
-                        dialog.setTitle("불러오지 못했습니다").setMessage(error)
-                                .setNegativeButton("취소", null);
-                        if ("로그인이 필요합니다.".equals(error))
-                            dialog.setPositiveButton("로그인", (d,w) -> login());
-                        else dialog.setPositiveButton("다시 시도", (d,w) -> request(message, work, result));
-                        dialog.show();
+                        showRequestFailure(e, () -> request(message, work, result));
                         if (!loading && interruptedLatest != null && interruptedLatest == resumeLatestEpisodes)
                             interruptedLatest.run();
                     }
@@ -739,6 +804,8 @@ public final class MainActivity extends Activity {
         final int token = ++generation;
         loading = true;
         status.setText(fromStorage ? "자동 로그인 중…" : "로그인 중…");
+        if (!reading) status.setVisibility(View.VISIBLE);
+        else if (readerProgress != null) readerProgress.setText(status.getText());
         io.execute(() -> {
             AccountClient.SessionStatus result = null;
             String problem = "";
@@ -805,8 +872,8 @@ public final class MainActivity extends Activity {
                 new Runnable[]{this::refresh, this::settings, this::displaySettings, this::keySettings,
                     () -> choices("파일과 책갈피", new String[]{"내 파일 읽기", "책갈피 목록", "현재 위치 책갈피", "리더 미리보기"},
                             new Runnable[]{this::importText, this::bookmarks, this::addBookmark, this::demo}),
-                    () -> choices("계정과 도움말", new String[]{"로그인 관리", "계정 연동 검사", "사용 방법", "앱 정보"},
-                            new Runnable[]{this::accountSettings, this::checkAccountLink, this::help, this::about})});
+                    () -> choices("계정과 도움말", new String[]{"로그인 관리", "성인 모드", "계정 연동 검사", "사용 방법", "앱 정보"},
+                            new Runnable[]{this::accountSettings, this::adultModeSettings, this::checkAccountLink, this::help, this::about})});
     }
 
     private void choices(String title, String[] labels, Runnable[] actions) {
@@ -1302,8 +1369,8 @@ public final class MainActivity extends Activity {
     }
     @Override protected void onDestroy() {
         destroyed = true;
-        ++latestEpisodeGeneration;
         if (loginDialog != null) loginDialog.dismiss();
+        ++latestEpisodeGeneration;
         ++generation;
         io.shutdownNow();
         super.onDestroy();

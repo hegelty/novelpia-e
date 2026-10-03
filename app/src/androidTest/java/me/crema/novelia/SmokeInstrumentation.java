@@ -128,6 +128,13 @@ public final class SmokeInstrumentation extends Instrumentation {
                     finally { finishMainActivity(); }
                 }
             });
+            runCheck("uiAdultMode", new Check() {
+                @Override public void run() throws Exception {
+                    freshActivity();
+                    try { AdultModeChecks.run(SmokeInstrumentation.this, activity[0]); }
+                    finally { finishMainActivity(); }
+                }
+            });
             runCheck("uiLatestEpisode", new Check() {
                 @Override public void run() throws Exception {
                     freshActivity();

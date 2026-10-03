@@ -66,6 +66,9 @@ public final class SiteClient {
     private static final int MAX_EPISODE_TITLE_CHARS = 500;
     private static final int MAX_EPISODE_LABEL_CHARS = 80;
     private static final String VIEWER_PATH_PREFIX = "/viewer/";
+    private static final Pattern SHOW_ACCESS_MODAL = Pattern.compile(
+            "^\\s*(?:try\\s*\\{\\s*)?\\$\\(\\s*(['\"])#alert_modal\\1\\s*\\)"
+            + "\\s*\\.modal\\(\\s*(['\"])show\\2\\s*\\)");
 
     /**
      * The public viewer's <title> slogan, stripped only when it is an exact
@@ -118,6 +121,7 @@ public final class SiteClient {
         if (html == null || html.length() == 0) {
             throw new IOException("서버 응답이 비어 있습니다.");
         }
+        checkHtmlAccessGate(Jsoup.parse(html));
         return parseCatalog(html);
     }
 
@@ -135,6 +139,7 @@ public final class SiteClient {
         form.put("sort", "up");
         form.put("page", String.valueOf(page));
         String html = agent.post(HOST + "/proc/episode_list_viewer", form);
+        if (html != null) checkHtmlAccessGate(Jsoup.parse(html));
         return parseEpisodeSheet(html, novelId);
     }
 
@@ -186,6 +191,7 @@ public final class SiteClient {
             throw new IOException("뷰어 응답이 비어 있습니다.");
         }
         Document doc = Jsoup.parse(html);
+        checkHtmlAccessGate(doc);
         String title = bounded(cleanTitle(doc.title()), MAX_TITLE_CHARS);
         String contentNo = value(doc, "input[name=content_no]");
         if (contentNo == null || contentNo.length() == 0) {
@@ -387,6 +393,45 @@ public final class SiteClient {
      */
     private static final int MAX_BODY_CHARS = 300_000;
 
+    /**
+     * The anonymous /viewer/4390049 response observed on 2026-10-03 renders
+     * #alert_modal and immediately opens it. Shared navigation scripts also
+     * contain login/adult messages, so neither document text nor arbitrary
+     * alert strings are evidence of a gate. Read only the opened gate modal.
+     */
+    private static void checkHtmlAccessGate(Document doc) throws ContentAccessException {
+        Element message = doc.select("#alert_modal .modal-body").first();
+        if (message == null) return;
+        for (Element script : doc.select("script:not([src])")) {
+            if (SHOW_ACCESS_MODAL.matcher(script.data()).find()) {
+                checkAccessMessage(message.text());
+                return;
+            }
+        }
+    }
+
+    /** Exact official UI messages, accepted only in a gate/error context. */
+    private static void checkAccessMessage(String message) throws ContentAccessException {
+        if (message == null) return;
+        String text = message.replaceAll("\\s+", " ").trim();
+        ContentAccessException.Reason reason;
+        if (text.equals("로그인이 필요합니다.")
+                || text.equals("로그인이 필요합니다. 로그인 하시겠습니까?")) {
+            reason = ContentAccessException.Reason.LOGIN_REQUIRED;
+        } else if (text.equals("성인 모드를 켜주세요.")
+                || text.equals("성인모드가 꺼져있는 상태입니다.")) {
+            reason = ContentAccessException.Reason.ADULT_MODE_REQUIRED;
+        } else if (text.equals("성인/본인인증이 필요합니다.")
+                || text.equals("성인/본인인증이 필요합니다. 인증 하시겠습니까?")) {
+            reason = ContentAccessException.Reason.AGE_VERIFICATION_REQUIRED;
+        } else if (text.equals("청소년은 성인 작품을 이용하실 수 없습니다.")) {
+            reason = ContentAccessException.Reason.AGE_RESTRICTED;
+        } else {
+            return;
+        }
+        throw new ContentAccessException(reason);
+    }
+
     private static String parseViewerBody(String body, String contentNo) throws IOException {
         if (body == null) {
             throw new IOException("본문 응답이 없습니다.");
@@ -397,6 +442,7 @@ public final class SiteClient {
         }
         String small = t.length() < 2048 ? t : t.substring(0, 2048);
         if (!small.startsWith("{")) {
+            checkHtmlAccessGate(Jsoup.parse(t));
             throw new IOException(formatGate(t));
         }
         Object root;
@@ -412,6 +458,7 @@ public final class SiteClient {
         Integer status = JsonReader.integer(map.get("status"));
         if (status != null && status.intValue() != 200) {
             String msg = JsonReader.string(map.get("errmsg"));
+            checkAccessMessage(msg);
             throw new IOException("본문을 불러오지 못했습니다: "
                     + textOr(msg, "status " + status + " (로그인 또는 구매 필요)"));
         }
@@ -419,6 +466,7 @@ public final class SiteClient {
         if (!(s instanceof List) || ((List<?>) s).isEmpty()) {
             String err = JsonReader.string(map.get("errmsg"));
             if (err != null && err.length() > 0) {
+                checkAccessMessage(err);
                 throw new IOException("본문을 불러오지 못했습니다: " + err);
             }
             throw new IOException("본문이 비어 있거나 열람 권한이 없습니다 (이용권/구매 로그인 필요). 회차 " + contentNo);
