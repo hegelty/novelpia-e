@@ -49,6 +49,32 @@ Only schema, read-only route constants, numeric counts and sanitized structure w
 emitted by the inspection. No real titles, member identifiers, cookies, credentials,
 or authenticated HTML fixture files are included in this repository.
 
+## Selection-wrapper compatibility (2026-10-06)
+
+The user signed into a separate local Chrome profile and authorized inspection.
+Read-only authenticated GETs confirmed that the page routes remain unchanged,
+but each novel now sits inside a direct `.mybook-selection-row` child of
+`.mybook-data-list-items`. The wrapper contains a selection label, an inline
+script, and one `.novel-list-real-container.s_inv` element. The old parser
+rejects these rows because it only accepts direct novel children.
+
+`LibraryParser` now accepts one direct `.novel-list-real-container` inside a
+direct `.mybook-selection-row`, as well as the original direct novel rows.
+Synthetic regression fixtures reproduce the old `library:invalid_page` failure
+for this hierarchy and check item metadata, ordering, all four shelf routes,
+pagination, the row limit, and rejection of unknown or ambiguous nesting.
+
+The same live HTML was passed transiently to `LibraryProbe` with both the
+original and updated parsers. Original parsing failed for populated preferred
+and recent shelves; updated parsing succeeded for both shelves on pages 1 and
+2 (30 items per page), including continuation metadata and adjacent navigation.
+The account's alarm and collection shelves were empty; both parsers accepted
+their existing empty-page structure. Nonempty alarm/collection rows are covered
+by synthetic fixtures, not by this account's live data. No guessed AJAX modes,
+account mutations, or changes to authentication are introduced. No credentials,
+titles, member identifiers, or authenticated HTML were written to fixtures or
+diagnostic output.
+
 ## Evidence locations
 
 - Existing anonymous homepage capture: `/tmp/novelpia-home.html`

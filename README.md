@@ -60,7 +60,7 @@
 
 ## 설치하기
 
-1. [최신 릴리즈](https://github.com/hegelty/novelpia-e/releases/latest)에서 `novelpia-e-0.1.0.apk`를 받습니다.
+1. [최신 릴리즈](https://github.com/hegelty/novelpia-e/releases/latest)에서 APK 파일을 받습니다.
 2. APK를 기기로 옮겨 파일 관리자에서 엽니다. 기기에서 요구하면 알 수 없는 출처의 앱 설치를 허용합니다.
 3. 앱을 열어 로그인합니다. 로그인하지 않고 살펴보려면 창을 닫고 **메뉴 → 파일과 책갈피 → 리더 미리보기**를 선택합니다.
 

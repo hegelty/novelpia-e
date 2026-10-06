@@ -19,7 +19,7 @@ python3 tools/build.py --api19-jar /path/to/android-19/android.jar --smoke --iso
 검증을 실행한다. 도구는 `.tools/`, 중간 산출물은 `build/manual/`, APK는 `dist/`에 생성한다.
 API 19 설치를 위한 v1 서명을 포함하며 ARMv7, ARM64, x86, x86_64 라이브러리를 함께 넣는다.
 
-일반 APK는 `dist/novelpia-e-0.1.0.apk`이다. 격리 검증 APK와 smoke APK는
+일반 APK는 `dist/novelpia-e-0.1.1.apk`이다. 격리 검증 APK와 smoke APK는
 `dist/validation/` 아래에 생성하며 일반 앱과 다른 데이터 영역을 사용한다.
 
 스크립트는 `.tools/debug.keystore`에 로컬 서명 키를 생성하고 재사용한다.
@@ -41,8 +41,8 @@ gradle :app:assembleDebug :app:testDebugUnitTest
 일반 앱의 실제 로그인 정보와 구분하기 위해 격리 검증 APK를 사용한다.
 
 ```sh
-adb install -r dist/validation/novelpia-e-0.1.0-validation.apk
-adb install -r dist/validation/novelpia-e-0.1.0-validation-smoke.apk
+adb install -r dist/validation/novelpia-e-0.1.1-validation.apk
+adb install -r dist/validation/novelpia-e-0.1.1-validation-smoke.apk
 adb shell am instrument -w -e skipNetwork true \
   me.crema.novelia.validation.smoke/me.crema.novelia.SmokeInstrumentation
 adb shell am instrument -w -e publicationScreenshots true \

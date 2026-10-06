@@ -139,7 +139,19 @@ public final class LibraryParser {
         if (containers.size() != 1) throw invalid();
         Element container = containers.get(0);
 
-        List<Element> rows = container.select("> .novel-list-real-container");
+        // Selection controls may wrap each novel in one mybook-selection-row.
+        // Keep the original direct rows supported, without accepting arbitrary
+        // descendant rows (e.g. recommendations or nested/ambiguous markup).
+        List<Element> rows = new ArrayList<Element>();
+        for (Element child : container.children()) {
+            if (child.hasClass("novel-list-real-container")) {
+                rows.add(child);
+            } else if (child.hasClass("mybook-selection-row")) {
+                List<Element> wrapped = child.select("> .novel-list-real-container");
+                if (wrapped.size() != 1) throw invalid();
+                rows.add(wrapped.get(0));
+            }
+        }
         if (container.select(".novel-list-real-container").size() != rows.size()) throw invalid();
         if (rows.size() > MAX_ROWS) throw invalid();
         List<LibraryPage.Item> items = new ArrayList<LibraryPage.Item>();

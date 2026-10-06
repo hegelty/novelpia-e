@@ -169,7 +169,7 @@ def main():
         app_link_extra = []
     run(aapt, "link", "-I", android, "--manifest", app_manifest,
         "--min-sdk-version", "19", "--target-sdk-version", "28",
-        "--version-code", "2", "--version-name", "0.1.0",
+        "--version-code", "3", "--version-name", "0.1.1",
         "--java", gen, "-A", ROOT / "app/src/main/assets", *app_link_extra,
         "-o", out / "unsigned.apk", out / "resources.zip")
     libraries = [deps / "conscrypt/classes.jar", deps / "jsoup.jar"]
@@ -203,8 +203,8 @@ def main():
     if validation:
         dist = dist / "validation"
         dist.mkdir(exist_ok=True)
-    apk = dist / ("novelpia-e-0.1.0-validation.apk" if validation
-                  else "novelpia-e-0.1.0.apk")
+    apk = dist / ("novelpia-e-0.1.1-validation.apk" if validation
+                  else "novelpia-e-0.1.1.apk")
     run(java / "java", "-jar", buildtools / "apksigner.jar", "sign",
         "--ks", key, "--ks-pass", "pass:android", "--key-pass", "pass:android",
         "--v1-signing-enabled", "true", "--v2-signing-enabled", "true",
@@ -242,8 +242,8 @@ def main():
         with zipfile.ZipFile(out / "smoke-unsigned.apk", "a", zipfile.ZIP_DEFLATED) as testapk:
             for file in smokedex.glob("*.dex"):
                 testapk.write(file, file.name)
-        smoke_apk = dist / ("novelpia-e-0.1.0-validation-smoke.apk" if validation
-                            else "novelpia-e-0.1.0-smoke.apk")
+        smoke_apk = dist / ("novelpia-e-0.1.1-validation-smoke.apk" if validation
+                            else "novelpia-e-0.1.1-smoke.apk")
         run(java / "java", "-jar", buildtools / "apksigner.jar", "sign",
             "--ks", key, "--ks-pass", "pass:android", "--key-pass", "pass:android",
             "--v1-signing-enabled", "true", "--out", smoke_apk, out / "smoke-unsigned.apk")

@@ -10,6 +10,65 @@ import java.util.List;
 public class LibraryParserTest {
     private static final String HOST = "https://novelpia.com";
 
+    private static String selectionRow(String content) {
+        return "<div class='mybook-selection-row'>"
+                + "<label class='mybook-selection-check'>"
+                + "<input type='checkbox' class='mybook-selection-checkbox'></label>"
+                + "<script>var fixtureOnly = true;</script>"
+                + content.replace("class='novel-list-real-container'",
+                        "class='novel-list-real-container s_inv'") + "</div>";
+    }
+
+    @Test public void selection_wrappers_preserve_items_and_shelf_navigation() throws Exception {
+        for (String shelf : new String[] {"like", "alarm", "collect", "last_view"}) {
+            String html = nonEmptyPage(shelf, "0", "date",
+                    selectionRow(nextRow("12", "작품", true, chapterCell("83"),
+                            "EP.70 이어보기", "작가", "", "get_next_episode(12, 101)"))
+                            + selectionRow(row("13", "다른 작품", false)));
+            LibraryPage parsed = LibraryParser.parse(html, HOST + "/mybook/" + shelf);
+            assertEquals(2, parsed.items.size());
+            LibraryPage.Item item = parsed.items.get(0);
+            assertEquals("작품", item.entry.title);
+            assertEquals(HOST + "/novel/12", item.entry.url);
+            assertEquals(HOST + "/viewer/12", item.continueUrl);
+            assertEquals(70, item.lastReadEpisode);
+            assertEquals(83, item.totalEpisodes);
+            assertEquals("작가", item.author);
+            assertEquals("101", item.nextEpisodeKey);
+            assertEquals(HOST + "/novel/13", parsed.items.get(1).entry.url);
+            assertEquals(shelf, parsed.shelf);
+            assertEquals("", parsed.previousUrl);
+            assertEquals(HOST + "/mybook/" + shelf + "/0/date/2", parsed.nextUrl);
+        }
+    }
+
+    @Test public void mixed_direct_and_selection_rows_keep_document_order() throws Exception {
+        LibraryPage parsed = LibraryParser.parse(nonEmptyPage(
+                row("11", "첫 작품", false) + selectionRow(row("12", "두 번째", false))
+                        + row("13", "세 번째", false)), HOST + "/mybook");
+        assertEquals(3, parsed.items.size());
+        for (int i = 0; i < 3; i++)
+            assertEquals(HOST + "/novel/" + (11 + i), parsed.items.get(i).entry.url);
+    }
+
+    @Test public void selection_wrappers_reject_missing_ambiguous_and_nested_rows() throws Exception {
+        String valid = selectionRow(row("12", "작품", false));
+        for (String invalid : new String[] {
+                selectionRow(""),
+                selectionRow(row("13", "하나", false) + row("14", "둘", false)),
+                selectionRow("<div>" + row("13", "중첩", false) + "</div>"),
+                selectionRow(selectionRow(row("13", "중첩", false))),
+                "<div>" + selectionRow(row("13", "중첩", false)) + "</div>",
+                "<div>" + row("13", "알 수 없는 구조", false) + "</div>"
+        }) expectParseFailure(nonEmptyPage(valid + invalid), HOST + "/mybook");
+    }
+
+    @Test public void selection_wrappers_still_enforce_the_row_limit() throws Exception {
+        StringBuilder rows = new StringBuilder();
+        for (int i = 1; i <= 101; i++) rows.append(selectionRow(row("" + i, "작품", false)));
+        expectParseFailure(nonEmptyPage(rows.toString()), HOST + "/mybook");
+    }
+
     @Test public void unsolicited_search_cannot_change_active_selection() throws Exception {
         String html = "<div class='mybook-data-list-items'>" + row("1", "합성", false)
                 + "</div><ul class='pagination'>"
